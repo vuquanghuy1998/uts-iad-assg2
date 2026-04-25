@@ -17,4 +17,3 @@ struct Bubble: Identifiable {
     var points: Int { bubbleColor.points }
     var color: Color { bubbleColor.color }
 }
-
