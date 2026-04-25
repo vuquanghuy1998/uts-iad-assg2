@@ -8,7 +8,7 @@
 import Foundation
 
 struct Score: Codable, Identifiable {
-    let id = UUID()
+    var id: UUID = UUID()
     let playerName: String
     let score: Int
 }
