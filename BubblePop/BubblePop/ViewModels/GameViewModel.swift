@@ -9,7 +9,7 @@ import SwiftUI
 import Combine
 
 class GameViewModel: ObservableObject {
-    
+
     // MARK: - Published properties (views watch these)
     @Published var bubbles: [Bubble] = []
     @Published var score: Int = 0
@@ -17,96 +17,139 @@ class GameViewModel: ObservableObject {
     @Published var isGameOver: Bool = false
     @Published var isGameRunning: Bool = false
     @Published var scorePopups: [ScorePopup] = []
-    
+
     // MARK: - Private properties
     private var timer: AnyCancellable?
+    private var displayLink: CADisplayLink?
+    private var lastFrameTime: CFTimeInterval = 0
     private var lastPoppedColor: BubbleColor? = nil
     private var screenSize: CGSize = .zero
     private let settings = GameSettings.shared
     private let scoreService = ScoreService.shared
-    
+    private var totalGameTime: Int = 60
+
     // MARK: - Player info
     var playerName: String = ""
-    
+
     // MARK: - Highest score during gameplay
     var highestScore: Int {
         scoreService.highestScore()
     }
-    
+
     // MARK: - Start game
     func startGame(screenSize: CGSize) {
         self.screenSize = screenSize
         self.score = 0
         self.timeLeft = settings.gameTime
+        self.totalGameTime = settings.gameTime
         self.bubbles = []
         self.isGameOver = false
         self.isGameRunning = true
         self.lastPoppedColor = nil
-        
-        // Generate initial bubbles
+
         spawnBubbles()
-        
-        // Start the countdown timer
+        startDisplayLink()
+
         timer = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.onTick()
             }
     }
-    
+
     // MARK: - Every second tick
     private func onTick() {
         guard timeLeft > 0 else {
             endGame()
             return
         }
-        
         timeLeft -= 1
         refreshBubbles()
-        
         if timeLeft == 0 {
             endGame()
         }
     }
-    
+
     // MARK: - Refresh bubbles every second
     private func refreshBubbles() {
-        // Randomly remove some existing bubbles
-        let removeCount = Int.random(in: 0...max(0, bubbles.count))
-        let shuffled = bubbles.shuffled()
-        bubbles = Array(shuffled.dropFirst(removeCount))
-        
-        // Spawn new bubbles to fill up
+        let live = bubbles.filter { !$0.isPopped }
+        let removeCount = Int.random(in: 0...max(0, live.count))
+        bubbles = Array(live.shuffled().dropFirst(removeCount))
         spawnBubbles()
     }
-    
+
     // MARK: - Spawn new bubbles
     private func spawnBubbles() {
         let maxBubbles = settings.maxBubbles
-        let currentCount = bubbles.count
-        
+        let currentCount = bubbles.filter { !$0.isPopped }.count
         guard currentCount < maxBubbles else { return }
-        
-        // Random number of new bubbles to add
+
         let spotsAvailable = maxBubbles - currentCount
         let newCount = Int.random(in: 0...spotsAvailable)
-        
+
         let newBubbles = BubbleGenerator.generateBubbles(
             count: newCount,
             existingBubbles: bubbles,
             screenSize: screenSize
         )
-        
         bubbles.append(contentsOf: newBubbles)
     }
-    
+
+    // MARK: - Display link (~60 fps movement)
+    private func startDisplayLink() {
+        stopDisplayLink()
+        lastFrameTime = 0
+        let dl = CADisplayLink(target: self, selector: #selector(onFrame))
+        dl.add(to: .main, forMode: .common)
+        displayLink = dl
+    }
+
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+    }
+
+    @objc private func onFrame(_ link: CADisplayLink) {
+        guard lastFrameTime > 0 else {
+            lastFrameTime = link.timestamp
+            return
+        }
+        let dt = CGFloat(link.timestamp - lastFrameTime)
+        lastFrameTime = link.timestamp
+
+        // Speed grows from 1× at game start to 3× at game end
+        let progress = totalGameTime > 0
+            ? CGFloat(totalGameTime - timeLeft) / CGFloat(totalGameTime)
+            : 1.0
+        let speedMultiplier: CGFloat = 1.0 + progress * 2.0
+
+        var toRemove: [UUID] = []
+
+        for i in bubbles.indices {
+            guard !bubbles[i].isPopped else { continue }
+
+            bubbles[i].position.x += bubbles[i].velocity.dx * speedMultiplier * dt
+            bubbles[i].position.y += bubbles[i].velocity.dy * speedMultiplier * dt
+
+            let p = bubbles[i].position
+            let r = bubbles[i].radius
+            if p.x + r < 0 || p.x - r > screenSize.width
+                || p.y + r < 0 || p.y - r > screenSize.height {
+                toRemove.append(bubbles[i].id)
+            }
+        }
+
+        if !toRemove.isEmpty {
+            bubbles.removeAll { toRemove.contains($0.id) }
+        }
+    }
+
     // MARK: - Pop a bubble
     func popBubble(_ bubble: Bubble) {
         guard let index = bubbles.firstIndex(where: { $0.id == bubble.id }),
               !bubbles[index].isPopped
         else { return }
 
-        // Calculate points with combo multiplier before marking popped
         var pointsEarned = bubble.points
         let isCombo = lastPoppedColor == bubble.bubbleColor
         if isCombo {
@@ -115,7 +158,6 @@ class GameViewModel: ObservableObject {
         score += pointsEarned
         lastPoppedColor = bubble.bubbleColor
 
-        // Show score popup
         let popup = ScorePopup(
             id: bubble.id,
             points: pointsEarned,
@@ -124,34 +166,30 @@ class GameViewModel: ObservableObject {
         )
         scorePopups.append(popup)
 
-        // Mark as popped — drives the shrink/fade animation in the view
         bubbles[index].isPopped = true
 
-        // Remove bubble after animation completes (0.35s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
             self?.bubbles.removeAll { $0.id == bubble.id }
         }
-
-        // Remove score popup after it floats away (1.0s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.scorePopups.removeAll { $0.id == bubble.id }
         }
     }
-    
+
     // MARK: - End game
     private func endGame() {
         timer?.cancel()
         timer = nil
+        stopDisplayLink()
         isGameRunning = false
         isGameOver = true
         bubbles = []
-        
-        // Save score to persistence
         scoreService.saveScore(playerName: playerName, score: score)
     }
-    
+
     // MARK: - Restart game
     func restartGame() {
+        stopDisplayLink()
         isGameOver = false
         isGameRunning = false
         score = 0

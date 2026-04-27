@@ -63,7 +63,7 @@ struct BubbleGenerator {
         screenSize: CGSize
     ) -> [Bubble] {
         var newBubbles: [Bubble] = []
-        
+
         for _ in 0..<count {
             let allBubbles = existingBubbles + newBubbles
             if let position = randomPosition(
@@ -71,9 +71,15 @@ struct BubbleGenerator {
                 screenSize: screenSize,
                 radius: 30
             ) {
+                // Random direction, base speed 40–80 pts/sec
+                let angle = CGFloat.random(in: 0..<(2 * .pi))
+                let speed = CGFloat.random(in: 40...80)
+                let velocity = CGVector(dx: cos(angle) * speed, dy: sin(angle) * speed)
+
                 let bubble = Bubble(
                     bubbleColor: randomBubbleColor(),
-                    position: position
+                    position: position,
+                    velocity: velocity
                 )
                 newBubbles.append(bubble)
             }

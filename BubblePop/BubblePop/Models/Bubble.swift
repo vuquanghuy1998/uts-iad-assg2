@@ -13,6 +13,7 @@ struct Bubble: Identifiable {
     var position: CGPoint
     let radius: CGFloat = 30
     var isPopped: Bool = false
+    var velocity: CGVector = .zero  // points per second
 
     // Convenience passthroughs from BubbleColor
     var points: Int { bubbleColor.points }
