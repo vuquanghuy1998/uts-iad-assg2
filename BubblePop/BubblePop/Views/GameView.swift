@@ -14,6 +14,7 @@ struct GameView: View {
     @StateObject private var viewModel = GameViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var navigateToScoreboard: Bool = false
+    @State private var gameAreaSize: CGSize = .zero
     
     var body: some View {
         GeometryReader { geometry in
@@ -72,7 +73,20 @@ struct GameView: View {
                     .background(Color(.systemBackground).opacity(0.8))
                     
                     // MARK: - Game area
+                    // Bubbles are positioned relative to this ZStack's coordinate space,
+                    // so we measure its actual size and pass that to the view model.
                     ZStack {
+                        // Invisible size reader — fills the game area and reports its size
+                        GeometryReader { gameGeo in
+                            Color.clear
+                                .onAppear {
+                                    gameAreaSize = gameGeo.size
+                                }
+                                .onChange(of: gameGeo.size) { _, newSize in
+                                    gameAreaSize = newSize
+                                }
+                        }
+                        
                         // Bubbles
                         ForEach(viewModel.bubbles) { bubble in
                             Circle()
@@ -93,7 +107,7 @@ struct GameView: View {
                 // MARK: - Countdown overlay
                 if !viewModel.isGameRunning && !viewModel.isGameOver {
                     CountdownView {
-                        viewModel.startGame(screenSize: geometry.size)
+                        viewModel.startGame(screenSize: gameAreaSize)
                     }
                 }
             }
