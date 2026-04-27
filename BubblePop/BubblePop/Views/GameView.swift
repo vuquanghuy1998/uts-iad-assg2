@@ -194,20 +194,28 @@ struct CountdownView: View {
 struct ScorePopupLabel: View {
 
     let popup: ScorePopup
-    @State private var offset: CGFloat = 0
+    @State private var offset: CGFloat = -40   // start already above the bubble centre
     @State private var opacity: Double = 1.0
 
     var body: some View {
         Text(popup.isCombo ? "🔥 +\(popup.points)" : "+\(popup.points)")
-            .font(.system(size: popup.isCombo ? 22 : 18, weight: .bold, design: .rounded))
+            .font(.system(size: popup.isCombo ? 28 : 24, weight: .heavy, design: .rounded))
             .foregroundColor(popup.isCombo ? .orange : .white)
-            .shadow(color: .black.opacity(0.4), radius: 2)
+            // Thin stroke border for legibility
+            .overlay(
+                Text(popup.isCombo ? "🔥 +\(popup.points)" : "+\(popup.points)")
+                    .font(.system(size: popup.isCombo ? 28 : 24, weight: .heavy, design: .rounded))
+                    .foregroundColor(popup.isCombo ? .brown.opacity(0.6) : .black.opacity(0.5))
+                    .blur(radius: 0.5)
+            )
+            // Drop shadow
+            .shadow(color: .black.opacity(0.55), radius: 3, x: 0, y: 2)
             .offset(y: offset)
             .opacity(opacity)
             .position(popup.position)
             .onAppear {
-                withAnimation(.easeOut(duration: 0.75)) {
-                    offset = -60
+                withAnimation(.easeOut(duration: 0.8)) {
+                    offset = -110    // floats ~70pt further up from starting offset
                     opacity = 0
                 }
             }

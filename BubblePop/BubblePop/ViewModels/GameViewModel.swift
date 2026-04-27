@@ -132,8 +132,8 @@ class GameViewModel: ObservableObject {
             self?.bubbles.removeAll { $0.id == bubble.id }
         }
 
-        // Remove score popup after it floats away (0.8s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        // Remove score popup after it floats away (1.0s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.scorePopups.removeAll { $0.id == bubble.id }
         }
     }

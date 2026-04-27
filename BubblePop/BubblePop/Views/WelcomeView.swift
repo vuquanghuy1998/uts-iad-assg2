@@ -32,7 +32,7 @@ struct WelcomeView: View {
                         .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundColor(.blue)
 
-                    Text("Pop bubbles, earn points!")
+                    Text("Pop bubbles, pop the fun!")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
