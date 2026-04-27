@@ -131,10 +131,19 @@ class GameViewModel: ObservableObject {
             bubbles[i].position.x += bubbles[i].velocity.dx * speedMultiplier * dt
             bubbles[i].position.y += bubbles[i].velocity.dy * speedMultiplier * dt
 
-            let p = bubbles[i].position
             let r = bubbles[i].radius
-            if p.x + r < 0 || p.x - r > screenSize.width
-                || p.y + r < 0 || p.y - r > screenSize.height {
+            let p = bubbles[i].position
+
+            // Bounce off the TOP edge — prevents bubbles drifting over the header
+            if p.y - r < 0 {
+                bubbles[i].position.y = r
+                bubbles[i].velocity.dy = abs(bubbles[i].velocity.dy)  // flip downward
+            }
+
+            // Remove when fully off left, right, or bottom edges (per EF1 spec)
+            if p.x + r < 0
+                || p.x - r > screenSize.width
+                || p.y - r > screenSize.height {
                 toRemove.append(bubbles[i].id)
             }
         }
