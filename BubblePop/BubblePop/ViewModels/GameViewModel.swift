@@ -16,6 +16,7 @@ class GameViewModel: ObservableObject {
     @Published var timeLeft: Int = 0
     @Published var isGameOver: Bool = false
     @Published var isGameRunning: Bool = false
+    @Published var scorePopups: [ScorePopup] = []
     
     // MARK: - Private properties
     private var timer: AnyCancellable?
@@ -101,20 +102,40 @@ class GameViewModel: ObservableObject {
     
     // MARK: - Pop a bubble
     func popBubble(_ bubble: Bubble) {
-        guard let index = bubbles.firstIndex(where: { $0.id == bubble.id })
+        guard let index = bubbles.firstIndex(where: { $0.id == bubble.id }),
+              !bubbles[index].isPopped
         else { return }
-        
-        // Remove bubble from screen
-        bubbles.remove(at: index)
-        
-        // Calculate points with combo multiplier
+
+        // Calculate points with combo multiplier before marking popped
         var pointsEarned = bubble.points
-        if lastPoppedColor == bubble.bubbleColor {
+        let isCombo = lastPoppedColor == bubble.bubbleColor
+        if isCombo {
             pointsEarned = Int((Double(bubble.points) * 1.5).rounded())
         }
-        
         score += pointsEarned
         lastPoppedColor = bubble.bubbleColor
+
+        // Show score popup
+        let popup = ScorePopup(
+            id: bubble.id,
+            points: pointsEarned,
+            isCombo: isCombo,
+            position: bubble.position
+        )
+        scorePopups.append(popup)
+
+        // Mark as popped — drives the shrink/fade animation in the view
+        bubbles[index].isPopped = true
+
+        // Remove bubble after animation completes (0.35s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.bubbles.removeAll { $0.id == bubble.id }
+        }
+
+        // Remove score popup after it floats away (0.8s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.scorePopups.removeAll { $0.id == bubble.id }
+        }
     }
     
     // MARK: - End game

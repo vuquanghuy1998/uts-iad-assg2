@@ -12,7 +12,8 @@ struct Bubble: Identifiable {
     let bubbleColor: BubbleColor
     var position: CGPoint
     let radius: CGFloat = 30
-    
+    var isPopped: Bool = false
+
     // Convenience passthroughs from BubbleColor
     var points: Int { bubbleColor.points }
     var color: Color { bubbleColor.color }

@@ -76,17 +76,29 @@ struct GameView: View {
                                 .onChange(of: gameGeo.size) { _, newSize in gameAreaSize = newSize }
                         }
 
+                        // Bubbles with pop animation
                         ForEach(viewModel.bubbles) { bubble in
                             Circle()
                                 .fill(bubble.color)
                                 .frame(width: bubble.radius * 2,
                                        height: bubble.radius * 2)
+                                .scaleEffect(bubble.isPopped ? 1.4 : 1.0)
+                                .opacity(bubble.isPopped ? 0.0 : 1.0)
+                                .animation(
+                                    .spring(response: 0.25, dampingFraction: 0.5),
+                                    value: bubble.isPopped
+                                )
                                 .position(bubble.position)
                                 .onTapGesture {
                                     viewModel.popBubble(bubble)
                                 }
                                 .shadow(color: bubble.color.opacity(0.4),
                                         radius: 4, x: 0, y: 2)
+                        }
+
+                        // Floating score popups
+                        ForEach(viewModel.scorePopups) { popup in
+                            ScorePopupLabel(popup: popup)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -175,6 +187,31 @@ struct CountdownView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Floating score label
+struct ScorePopupLabel: View {
+
+    let popup: ScorePopup
+    @State private var offset: CGFloat = 0
+    @State private var opacity: Double = 1.0
+
+    var body: some View {
+        Text(popup.isCombo ? "🔥 +\(popup.points)" : "+\(popup.points)")
+            .font(.system(size: popup.isCombo ? 22 : 18, weight: .bold, design: .rounded))
+            .foregroundColor(popup.isCombo ? .orange : .white)
+            .shadow(color: .black.opacity(0.4), radius: 2)
+            .offset(y: offset)
+            .opacity(opacity)
+            .position(popup.position)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.75)) {
+                    offset = -60
+                    opacity = 0
+                }
+            }
+            .allowsHitTesting(false)
     }
 }
 
