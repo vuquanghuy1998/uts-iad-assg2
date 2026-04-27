@@ -8,18 +8,16 @@
 import SwiftUI
 
 struct ScoreboardView: View {
-    
+
     let playerName: String
     let finalScore: Int
-    
-    @StateObject private var viewModel = GameViewModel()
-    @Environment(\.dismiss) private var dismiss
+    @Binding var navPath: NavigationPath
+
     @State private var scores: [Score] = []
-    @State private var navigateToGame: Bool = false
-    
+
     var body: some View {
         ZStack {
-            
+
             // MARK: - Background
             LinearGradient(
                 colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
@@ -27,29 +25,28 @@ struct ScoreboardView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
-                
+
                 // MARK: - Player result card
                 VStack(spacing: 8) {
                     Text("Game Over!")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
-                    
+
                     Text(playerName)
                         .font(.title2)
                         .fontWeight(.semibold)
                         .foregroundColor(.blue)
-                    
+
                     Text("Your Score")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
+
                     Text("\(finalScore)")
                         .font(.system(size: 64, weight: .bold, design: .rounded))
                         .foregroundColor(.blue)
-                    
-                    // Show if player beat the high score
+
                     if finalScore == scores.first?.score && finalScore > 0 {
                         HStack {
                             Image(systemName: "trophy.fill")
@@ -67,13 +64,13 @@ struct ScoreboardView: View {
                 .background(Color(.systemBackground).opacity(0.8))
                 .cornerRadius(20)
                 .padding(.horizontal)
-                
+
                 // MARK: - Scoreboard list
                 VStack(alignment: .leading, spacing: 12) {
                     Text("High Scores")
                         .font(.headline)
                         .padding(.horizontal)
-                    
+
                     if scores.isEmpty {
                         Text("No scores yet")
                             .foregroundColor(.secondary)
@@ -81,7 +78,6 @@ struct ScoreboardView: View {
                     } else {
                         ForEach(Array(scores.enumerated()), id: \.offset) { index, entry in
                             HStack {
-                                // Rank
                                 ZStack {
                                     Circle()
                                         .fill(rankColor(for: index))
@@ -91,15 +87,13 @@ struct ScoreboardView: View {
                                         .fontWeight(.bold)
                                         .foregroundColor(.white)
                                 }
-                                
-                                // Player name
+
                                 Text(entry.playerName)
                                     .font(.body)
                                     .fontWeight(entry.playerName == playerName ? .bold : .regular)
-                                
+
                                 Spacer()
-                                
-                                // Score
+
                                 Text("\(entry.score)")
                                     .font(.body)
                                     .fontWeight(.semibold)
@@ -120,14 +114,18 @@ struct ScoreboardView: View {
                 .background(Color(.systemBackground).opacity(0.8))
                 .cornerRadius(20)
                 .padding(.horizontal)
-                
+
                 Spacer()
-                
+
                 // MARK: - Action buttons
                 VStack(spacing: 12) {
-                    // Play again button
+
+                    // Play Again — pop back to GameView by keeping only the game entry
                     Button {
-                        navigateToGame = true
+                        // Remove scoreboard from path, leaving the game destination,
+                        // which creates a fresh GameView with a new countdown
+                        navPath = NavigationPath()
+                        navPath.append(NavDestination.game(playerName))
                     } label: {
                         Text("Play Again")
                             .font(.title3)
@@ -139,12 +137,10 @@ struct ScoreboardView: View {
                             .cornerRadius(16)
                             .padding(.horizontal)
                     }
-                    
-                    // Home button
+
+                    // Home — clear entire stack, back to WelcomeView
                     Button {
-                        // Pop all the way back to WelcomeView
-                        dismiss()
-                        dismiss()
+                        navPath = NavigationPath()
                     } label: {
                         Text("Home")
                             .font(.title3)
@@ -164,15 +160,11 @@ struct ScoreboardView: View {
         .navigationTitle("Scoreboard")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .navigationDestination(isPresented: $navigateToGame) {
-            GameView(playerName: playerName)
-        }
         .onAppear {
             scores = ScoreService.shared.loadScores()
         }
     }
-    
-    // MARK: - Rank colours
+
     private func rankColor(for index: Int) -> Color {
         switch index {
         case 0: return .yellow
@@ -184,7 +176,5 @@ struct ScoreboardView: View {
 }
 
 #Preview {
-    NavigationStack {
-        ScoreboardView(playerName: "Adam", finalScore: 42)
-    }
+    WelcomeView()
 }

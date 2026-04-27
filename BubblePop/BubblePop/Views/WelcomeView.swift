@@ -8,14 +8,14 @@
 import SwiftUI
 
 struct WelcomeView: View {
-    
+
     @StateObject private var settings = GameSettings.shared
     @State private var playerName: String = ""
-    @State private var navigateToGame: Bool = false
+    @State private var navPath = NavigationPath()
     @State private var navigateToSettings: Bool = false
-    
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ZStack {
                 // Background gradient
                 LinearGradient(
@@ -24,26 +24,26 @@ struct WelcomeView: View {
                     endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
-                
+
                 VStack(spacing: 30) {
-                    
+
                     // MARK: - Title
                     Text("BubblePop")
                         .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundColor(.blue)
-                    
-                    Text("Pop bubbles, drop the fun!")
+
+                    Text("Pop bubbles, earn points!")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    
+
                     Spacer().frame(height: 20)
-                    
+
                     // MARK: - Name entry
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Your Name")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        
+
                         TextField("Enter your name", text: $playerName)
                             .padding()
                             .background(Color(.systemBackground))
@@ -51,10 +51,10 @@ struct WelcomeView: View {
                             .shadow(color: .black.opacity(0.1), radius: 4)
                     }
                     .padding(.horizontal, 40)
-                    
+
                     // MARK: - Start button
                     Button {
-                        navigateToGame = true
+                        navPath.append(NavDestination.game(playerName.trimmingCharacters(in: .whitespaces)))
                     } label: {
                         Text("Start Game")
                             .font(.title2)
@@ -69,7 +69,7 @@ struct WelcomeView: View {
                             .padding(.horizontal, 40)
                     }
                     .disabled(playerName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    
+
                     // MARK: - Settings button
                     Button {
                         navigateToSettings = true
@@ -84,14 +84,25 @@ struct WelcomeView: View {
                 .padding()
             }
             // MARK: - Navigation destinations
-            .navigationDestination(isPresented: $navigateToGame) {
-                GameView(playerName: playerName.trimmingCharacters(in: .whitespaces))
+            .navigationDestination(for: NavDestination.self) { destination in
+                switch destination {
+                case .game(let name):
+                    GameView(playerName: name, navPath: $navPath)
+                case .scoreboard(let name, let score):
+                    ScoreboardView(playerName: name, finalScore: score, navPath: $navPath)
+                }
             }
             .navigationDestination(isPresented: $navigateToSettings) {
                 SettingsView()
             }
         }
     }
+}
+
+// MARK: - Navigation destinations enum
+enum NavDestination: Hashable {
+    case game(String)
+    case scoreboard(String, Int)
 }
 
 #Preview {
