@@ -17,8 +17,14 @@ class GameViewModel: ObservableObject {
     @Published var isGameOver: Bool = false
     @Published var isGameRunning: Bool = false
     @Published var scorePopups: [ScorePopup] = []
+    /// Toggles every time the score increases — used to drive a header flash animation
+    @Published var scoreDidChange: Bool = false
+    /// Current consecutive combo length (resets to 1 when colour changes)
+    @Published var comboCount: Int = 0
+    /// Highest score across all players — published so the header stays reactive
+    @Published var highestScore: Int = 0
 
-    // MARK: - Private properties
+    // MARK: - Private state
     private var timer: AnyCancellable?
     private var displayLink: CADisplayLink?
     private var lastFrameTime: CFTimeInterval = 0
@@ -31,11 +37,6 @@ class GameViewModel: ObservableObject {
     // MARK: - Player info
     var playerName: String = ""
 
-    // MARK: - Highest score during gameplay
-    var highestScore: Int {
-        scoreService.highestScore()
-    }
-
     // MARK: - Start game
     func startGame(screenSize: CGSize) {
         self.screenSize = screenSize
@@ -46,31 +47,26 @@ class GameViewModel: ObservableObject {
         self.isGameOver = false
         self.isGameRunning = true
         self.lastPoppedColor = nil
+        self.comboCount = 0
+        self.highestScore = scoreService.highestScore()
 
         spawnBubbles()
         startDisplayLink()
 
         timer = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in
-                self?.onTick()
-            }
+            .sink { [weak self] _ in self?.onTick() }
     }
 
-    // MARK: - Every second tick
+    // MARK: - Per-second tick
     private func onTick() {
-        guard timeLeft > 0 else {
-            endGame()
-            return
-        }
+        guard timeLeft > 0 else { endGame(); return }
         timeLeft -= 1
         refreshBubbles()
-        if timeLeft == 0 {
-            endGame()
-        }
+        if timeLeft == 0 { endGame() }
     }
 
-    // MARK: - Refresh bubbles every second
+    // MARK: - Refresh the bubble field every second (CF9)
     private func refreshBubbles() {
         let live = bubbles.filter { !$0.isPopped }
         let removeCount = Int.random(in: 0...max(0, live.count))
@@ -78,15 +74,13 @@ class GameViewModel: ObservableObject {
         spawnBubbles()
     }
 
-    // MARK: - Spawn new bubbles
+    // MARK: - Spawn new bubbles up to maxBubbles (CF5, CF6)
     private func spawnBubbles() {
         let maxBubbles = settings.maxBubbles
         let currentCount = bubbles.filter { !$0.isPopped }.count
         guard currentCount < maxBubbles else { return }
-
         let spotsAvailable = maxBubbles - currentCount
         let newCount = Int.random(in: 0...spotsAvailable)
-
         let newBubbles = BubbleGenerator.generateBubbles(
             count: newCount,
             existingBubbles: bubbles,
@@ -95,7 +89,7 @@ class GameViewModel: ObservableObject {
         bubbles.append(contentsOf: newBubbles)
     }
 
-    // MARK: - Display link (~60 fps movement)
+    // MARK: - CADisplayLink for smooth movement (EF1)
     private func startDisplayLink() {
         stopDisplayLink()
         lastFrameTime = 0
@@ -110,14 +104,11 @@ class GameViewModel: ObservableObject {
     }
 
     @objc private func onFrame(_ link: CADisplayLink) {
-        guard lastFrameTime > 0 else {
-            lastFrameTime = link.timestamp
-            return
-        }
+        guard lastFrameTime > 0 else { lastFrameTime = link.timestamp; return }
         let dt = CGFloat(link.timestamp - lastFrameTime)
         lastFrameTime = link.timestamp
 
-        // Speed grows from 1× at game start to 3× at game end
+        // Speed increases from 1× at the start to 3× at the end (EF1)
         let progress = totalGameTime > 0
             ? CGFloat(totalGameTime - timeLeft) / CGFloat(totalGameTime)
             : 1.0
@@ -134,16 +125,14 @@ class GameViewModel: ObservableObject {
             let r = bubbles[i].radius
             let p = bubbles[i].position
 
-            // Bounce off the TOP edge — prevents bubbles drifting over the header
+            // Bounce off the top edge so bubbles stay in the game area
             if p.y - r < 0 {
                 bubbles[i].position.y = r
-                bubbles[i].velocity.dy = abs(bubbles[i].velocity.dy)  // flip downward
+                bubbles[i].velocity.dy = abs(bubbles[i].velocity.dy)
             }
 
-            // Remove when fully off left, right, or bottom edges (per EF1 spec)
-            if p.x + r < 0
-                || p.x - r > screenSize.width
-                || p.y - r > screenSize.height {
+            // Exit off left, right, or bottom (EF1 — "go off the screen")
+            if p.x + r < 0 || p.x - r > screenSize.width || p.y - r > screenSize.height {
                 toRemove.append(bubbles[i].id)
             }
         }
@@ -153,27 +142,29 @@ class GameViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Pop a bubble
+    // MARK: - Pop a bubble (CF8)
     func popBubble(_ bubble: Bubble) {
         guard let index = bubbles.firstIndex(where: { $0.id == bubble.id }),
               !bubbles[index].isPopped
         else { return }
 
-        var pointsEarned = bubble.points
+        // Combo multiplier: 1.5× for consecutive same-colour pops (CF8)
         let isCombo = lastPoppedColor == bubble.bubbleColor
-        if isCombo {
-            pointsEarned = Int((Double(bubble.points) * 1.5).rounded())
-        }
-        score += pointsEarned
+        comboCount = isCombo ? comboCount + 1 : 1
         lastPoppedColor = bubble.bubbleColor
 
-        let popup = ScorePopup(
+        let pointsEarned = isCombo
+            ? Int((Double(bubble.points) * 1.5).rounded())
+            : bubble.points
+        score += pointsEarned
+        scoreDidChange.toggle()    // triggers header flash (EF2c)
+
+        scorePopups.append(ScorePopup(
             id: bubble.id,
             points: pointsEarned,
             isCombo: isCombo,
             position: bubble.position
-        )
-        scorePopups.append(popup)
+        ))
 
         bubbles[index].isPopped = true
 
@@ -185,7 +176,7 @@ class GameViewModel: ObservableObject {
         }
     }
 
-    // MARK: - End game
+    // MARK: - End game (CF10)
     private func endGame() {
         timer?.cancel()
         timer = nil
@@ -196,7 +187,7 @@ class GameViewModel: ObservableObject {
         scoreService.saveScore(playerName: playerName, score: score)
     }
 
-    // MARK: - Restart game
+    // MARK: - Reset to pre-game idle state (called before a new countdown)
     func restartGame() {
         stopDisplayLink()
         isGameOver = false
@@ -205,5 +196,7 @@ class GameViewModel: ObservableObject {
         timeLeft = 0
         bubbles = []
         lastPoppedColor = nil
+        comboCount = 0
+        highestScore = scoreService.highestScore()
     }
 }
