@@ -14,17 +14,29 @@ struct WelcomeView: View {
     @State private var navPath = NavigationPath()
     @State private var navigateToSettings: Bool = false
     @State private var showNameError: Bool = false
+    /// Names loaded from the scoreboard for the returning-player picker.
+    @State private var knownNames: [String] = []
+    /// Controls whether the name suggestions dropdown is visible.
+    @State private var showSuggestions: Bool = false
 
-    /// Maximum characters allowed in the player name field
-    private let maxNameLength = 20
+    private let maxNameLength = 50
 
     private var trimmedName: String { playerName.trimmingCharacters(in: .whitespaces) }
     private var nameIsValid: Bool { !trimmedName.isEmpty }
 
+    /// Filters known names to those that start with (or equal) the trimmed input,
+    /// case-insensitively. Empty input shows all names so returning players can
+    /// just tap without typing anything.
+    private var filteredSuggestions: [String] {
+        guard !knownNames.isEmpty else { return [] }
+        let q = trimmedName.lowercased()
+        if q.isEmpty { return knownNames }
+        return knownNames.filter { $0.lowercased().hasPrefix(q) }
+    }
+
     var body: some View {
         NavigationStack(path: $navPath) {
             ZStack {
-                // Background gradient
                 LinearGradient(
                     colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
                     startPoint: .topLeading,
@@ -46,33 +58,92 @@ struct WelcomeView: View {
 
                     Spacer().frame(height: 10)
 
-                    // MARK: - Name entry (CF1)
+                    // MARK: - Name entry + suggestions (CF1)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Your Name")
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        TextField("Enter your name", text: $playerName)
-                            .padding()
+                        // Text field with a small chevron to toggle the picker
+                        HStack {
+                            TextField("Enter your name", text: $playerName)
+                                .onChange(of: playerName) { _, newValue in
+                                    // Enforce character limit
+                                    if newValue.count > maxNameLength {
+                                        playerName = String(newValue.prefix(maxNameLength))
+                                    }
+                                    if !newValue.isEmpty { showNameError = false }
+                                    // Auto-show suggestions while the user is typing
+                                    showSuggestions = !filteredSuggestions.isEmpty
+                                }
+
+                            // Only show the picker toggle when there are known names
+                            if !knownNames.isEmpty {
+                                Button {
+                                    showSuggestions.toggle()
+                                    // Dismiss keyboard when opening the picker
+                                    UIApplication.shared.sendAction(
+                                        #selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil
+                                    )
+                                } label: {
+                                    Image(systemName: showSuggestions ? "chevron.up" : "chevron.down")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.1), radius: 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(showNameError ? Color.red : Color.clear, lineWidth: 1.5)
+                        )
+
+                        // Returning-player suggestions dropdown
+                        if showSuggestions && !filteredSuggestions.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(filteredSuggestions, id: \.self) { name in
+                                    Button {
+                                        playerName = name
+                                        showSuggestions = false
+                                        showNameError = false
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(.blue)
+                                                .font(.caption)
+                                            Text(name)
+                                                .foregroundColor(.primary)
+                                            Spacer()
+                                            // Highlight when it exactly matches
+                                            if trimmedName.lowercased() == name.lowercased() {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.blue)
+                                                    .font(.caption)
+                                            }
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 10)
+                                    }
+                                    if name != filteredSuggestions.last {
+                                        Divider().padding(.horizontal, 12)
+                                    }
+                                }
+                            }
                             .background(Color(.systemBackground))
                             .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.1), radius: 4)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(showNameError ? Color.red : Color.clear, lineWidth: 1.5)
-                            )
-                            // Enforce character limit in-line
-                            .onChange(of: playerName) { _, newValue in
-                                if newValue.count > maxNameLength {
-                                    playerName = String(newValue.prefix(maxNameLength))
-                                }
-                                if !newValue.isEmpty { showNameError = false }
-                            }
+                            .shadow(color: .black.opacity(0.12), radius: 6)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
 
                         // Character counter + error hint
                         HStack {
                             if showNameError {
-                                Label("Please enter your name to play.", systemImage: "exclamationmark.circle.fill")
+                                Label("Please enter your name to play.",
+                                      systemImage: "exclamationmark.circle.fill")
                                     .font(.caption)
                                     .foregroundColor(.red)
                                     .transition(.opacity)
@@ -85,37 +156,33 @@ struct WelcomeView: View {
                         .animation(.easeInOut(duration: 0.2), value: showNameError)
                     }
                     .padding(.horizontal, 40)
+                    .animation(.easeInOut(duration: 0.18), value: showSuggestions)
 
-                    // MARK: - Start button (CF1)
+                    // MARK: - Start button
                     Button {
                         if nameIsValid {
                             showNameError = false
+                            showSuggestions = false
                             navPath.append(NavDestination.game(trimmedName, UUID()))
                         } else {
                             withAnimation { showNameError = true }
                         }
                     } label: {
                         Text("Start Game")
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                            .font(.title2).fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                            .frame(maxWidth: .infinity).padding()
                             .background(nameIsValid ? Color.blue : Color.gray)
                             .cornerRadius(16)
                             .padding(.horizontal, 40)
                     }
 
-                    // MARK: - Scoreboard & Settings
+                    // MARK: - Settings & Scoreboard
                     HStack(spacing: 32) {
-                        Button {
-                            navigateToSettings = true
-                        } label: {
+                        Button { navigateToSettings = true } label: {
                             VStack(spacing: 4) {
-                                Image(systemName: "gearshape.fill")
-                                    .font(.title2)
-                                Text("Settings")
-                                    .font(.caption)
+                                Image(systemName: "gearshape.fill").font(.title2)
+                                Text("Settings").font(.caption)
                             }
                             .foregroundColor(.blue)
                         }
@@ -124,10 +191,8 @@ struct WelcomeView: View {
                             navPath.append(NavDestination.scoreboard("", 0))
                         } label: {
                             VStack(spacing: 4) {
-                                Image(systemName: "trophy.fill")
-                                    .font(.title2)
-                                Text("Scores")
-                                    .font(.caption)
+                                Image(systemName: "trophy.fill").font(.title2)
+                                Text("Scores").font(.caption)
                             }
                             .foregroundColor(.purple)
                         }
@@ -135,7 +200,6 @@ struct WelcomeView: View {
                 }
                 .padding()
             }
-            // MARK: - Navigation destinations
             .navigationDestination(for: NavDestination.self) { destination in
                 switch destination {
                 case .game(let name, _):
@@ -146,6 +210,9 @@ struct WelcomeView: View {
             }
             .navigationDestination(isPresented: $navigateToSettings) {
                 SettingsView()
+            }
+            .onAppear {
+                knownNames = ScoreService.shared.allPlayerNames()
             }
         }
     }

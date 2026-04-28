@@ -21,27 +21,24 @@ class GameSettings: ObservableObject {
     static let maxBubblesLimit = 30
 
     // MARK: - Game time (default 60 seconds)
+    // didSet only persists — clamping is done at the point of assignment
+    // (writing back to self inside didSet causes infinite recursion).
     @Published var gameTime: Int {
-        didSet {
-            gameTime = max(GameSettings.minGameTime,
-                          min(gameTime, GameSettings.maxGameTimeLimit))
-            UserDefaults.standard.set(gameTime, forKey: gameTimeKey)
-        }
+        didSet { UserDefaults.standard.set(gameTime, forKey: gameTimeKey) }
     }
 
     // MARK: - Max bubbles (default 15)
     @Published var maxBubbles: Int {
-        didSet {
-            maxBubbles = max(GameSettings.minBubbles,
-                            min(maxBubbles, GameSettings.maxBubblesLimit))
-            UserDefaults.standard.set(maxBubbles, forKey: maxBubblesKey)
-        }
+        didSet { UserDefaults.standard.set(maxBubbles, forKey: maxBubblesKey) }
     }
 
     // Shared instance
     static let shared = GameSettings()
     private init() {
-        self.gameTime = UserDefaults.standard.object(forKey: "gameTime") as? Int ?? 60
-        self.maxBubbles = UserDefaults.standard.object(forKey: "maxBubbles") as? Int ?? 15
+        let savedTime = UserDefaults.standard.object(forKey: "gameTime") as? Int ?? 60
+        let savedBubbles = UserDefaults.standard.object(forKey: "maxBubbles") as? Int ?? 15
+        // Clamp on load in case stored values are out of range
+        self.gameTime = max(Self.minGameTime, min(savedTime, Self.maxGameTimeLimit))
+        self.maxBubbles = max(Self.minBubbles, min(savedBubbles, Self.maxBubblesLimit))
     }
 }
