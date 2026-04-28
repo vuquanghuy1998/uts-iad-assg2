@@ -46,8 +46,15 @@ struct WelcomeView: View {
                     ScrollView {
                         VStack(spacing: 30) {
 
-                            // MARK: - Title
-                            VStack(spacing: 6) {
+                            // MARK: - Logo + Title
+                            VStack(spacing: 12) {
+                                Image("WelcomePageLogo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 380, height: 120)
+                                    .cornerRadius(24)
+                                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+
                                 Text("BubblePop")
                                     .font(.system(size: 48, weight: .bold, design: .rounded))
                                     .foregroundColor(.blue)
