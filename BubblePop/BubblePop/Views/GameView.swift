@@ -14,9 +14,9 @@ struct GameView: View {
 
     @StateObject private var viewModel = GameViewModel()
     @State private var gameAreaSize: CGSize = .zero
-    /// Guards the CountdownView so it only appears after the game area has been measured,
-    /// preventing startGame from receiving a zero-sized screenSize.
     @State private var gameAreaReady: Bool = false
+    /// Controls the "End Game early?" confirmation alert
+    @State private var showEndGameAlert: Bool = false
 
     var body: some View {
         GeometryReader { _ in
@@ -37,7 +37,6 @@ struct GameView: View {
 
                     // MARK: - Game area
                     ZStack {
-                        // Invisible geometry reader — captures the true game-area size
                         GeometryReader { gameGeo in
                             Color.clear
                                 .onAppear {
@@ -50,13 +49,11 @@ struct GameView: View {
                                 }
                         }
 
-                        // Bubbles
                         ForEach(viewModel.bubbles) { bubble in
                             BubbleView(bubble: bubble)
                                 .onTapGesture { viewModel.popBubble(bubble) }
                         }
 
-                        // Floating score popups
                         ForEach(viewModel.scorePopups) { popup in
                             ScorePopupLabel(popup: popup)
                         }
@@ -65,7 +62,6 @@ struct GameView: View {
                 }
 
                 // MARK: - Countdown overlay
-                // Only shown once the game area size is known and we are not yet running.
                 if gameAreaReady && !viewModel.isGameRunning && !viewModel.isGameOver {
                     CountdownView {
                         viewModel.startGame(screenSize: gameAreaSize)
@@ -83,6 +79,7 @@ struct GameView: View {
             }
             .navigationBarBackButtonHidden(true)
             .toolbar {
+                // Quit — abandons the game with no score saved
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         navPath = NavigationPath()
@@ -93,14 +90,35 @@ struct GameView: View {
                         }
                     }
                 }
+
+                // End Game — saves score and goes to the scoreboard early
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        // Only show the alert when a game is actually in progress
+                        if viewModel.isGameRunning {
+                            showEndGameAlert = true
+                        }
+                    } label: {
+                        Text("End Game")
+                            .fontWeight(.semibold)
+                            .foregroundColor(viewModel.isGameRunning ? .red : .secondary)
+                    }
+                    .disabled(!viewModel.isGameRunning)
+                }
+            }
+            .alert("End Game?", isPresented: $showEndGameAlert) {
+                Button("End & Save Score", role: .destructive) {
+                    viewModel.finishGameEarly()
+                }
+                Button("Keep Playing", role: .cancel) { }
+            } message: {
+                Text("Your current score of \(viewModel.score) will be saved.")
             }
         }
     }
 }
 
 // MARK: - Header view
-/// Shows Time Left, current Score (with a flash on change), and Best score.
-/// Also displays an animated combo badge when the player is on a streak.
 struct GameHeaderView: View {
 
     @ObservedObject var viewModel: GameViewModel
@@ -108,27 +126,21 @@ struct GameHeaderView: View {
 
     var body: some View {
         HStack {
-            // Time left
             VStack(spacing: 2) {
                 Text("Time Left")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(.secondary)
                 Text("\(viewModel.timeLeft)")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.title).fontWeight(.bold)
                     .foregroundColor(viewModel.timeLeft <= 10 ? .red : .primary)
             }
 
             Spacer()
 
-            // Score — flashes and scales up on each new point
             VStack(spacing: 2) {
                 Text("Score")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(.secondary)
                 Text("\(viewModel.score)")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.title).fontWeight(.bold)
                     .foregroundColor(.blue)
                     .scaleEffect(scoreScale)
                     .onChange(of: viewModel.scoreDidChange) { _, _ in
@@ -142,11 +154,9 @@ struct GameHeaderView: View {
                         }
                     }
 
-                // Combo badge — visible whenever the player has 2+ consecutive pops
                 if viewModel.comboCount >= 2 {
                     Text("🔥 ×\(viewModel.comboCount) Combo!")
-                        .font(.caption2)
-                        .fontWeight(.heavy)
+                        .font(.caption2).fontWeight(.heavy)
                         .foregroundColor(.orange)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -155,14 +165,11 @@ struct GameHeaderView: View {
 
             Spacer()
 
-            // Best score (EF3)
             VStack(spacing: 2) {
                 Text("Best")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(.secondary)
                 Text("\(viewModel.highestScore)")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.title).fontWeight(.bold)
                     .foregroundColor(.purple)
             }
         }
@@ -173,15 +180,12 @@ struct GameHeaderView: View {
 }
 
 // MARK: - Individual bubble view
-/// Renders a bubble as a radial-gradient circle with a gloss highlight,
-/// and plays a pop animation (scale + fade) when `bubble.isPopped` becomes true.
 struct BubbleView: View {
 
     let bubble: Bubble
 
     var body: some View {
         ZStack {
-            // Base fill — radial gradient gives a 3-D sheen
             Circle()
                 .fill(
                     RadialGradient(
@@ -191,8 +195,6 @@ struct BubbleView: View {
                         endRadius: bubble.radius * 1.8
                     )
                 )
-
-            // Gloss highlight
             Circle()
                 .fill(
                     RadialGradient(
@@ -206,10 +208,7 @@ struct BubbleView: View {
         .frame(width: bubble.radius * 2, height: bubble.radius * 2)
         .scaleEffect(bubble.isPopped ? 1.5 : 1.0)
         .opacity(bubble.isPopped ? 0.0 : 1.0)
-        .animation(
-            .spring(response: 0.22, dampingFraction: 0.45),
-            value: bubble.isPopped
-        )
+        .animation(.spring(response: 0.22, dampingFraction: 0.45), value: bubble.isPopped)
         .shadow(color: bubble.color.opacity(0.45), radius: 5, x: 0, y: 3)
         .position(bubble.position)
         .allowsHitTesting(!bubble.isPopped)
@@ -226,9 +225,7 @@ struct CountdownView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-
+            Color.black.opacity(0.45).ignoresSafeArea()
             Group {
                 if count > 0 {
                     Text("\(count)")

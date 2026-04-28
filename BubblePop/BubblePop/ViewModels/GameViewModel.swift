@@ -17,7 +17,7 @@ class GameViewModel: ObservableObject {
     @Published var isGameOver: Bool = false
     @Published var isGameRunning: Bool = false
     @Published var scorePopups: [ScorePopup] = []
-    /// Toggles every time the score increases — used to drive a header flash animation
+    /// Toggles every time the score increases — drives the header spring animation
     @Published var scoreDidChange: Bool = false
     /// Current consecutive combo length (resets to 1 when colour changes)
     @Published var comboCount: Int = 0
@@ -131,7 +131,7 @@ class GameViewModel: ObservableObject {
                 bubbles[i].velocity.dy = abs(bubbles[i].velocity.dy)
             }
 
-            // Exit off left, right, or bottom (EF1 — "go off the screen")
+            // Exit off left, right, or bottom (EF1)
             if p.x + r < 0 || p.x - r > screenSize.width || p.y - r > screenSize.height {
                 toRemove.append(bubbles[i].id)
             }
@@ -148,7 +148,6 @@ class GameViewModel: ObservableObject {
               !bubbles[index].isPopped
         else { return }
 
-        // Combo multiplier: 1.5× for consecutive same-colour pops (CF8)
         let isCombo = lastPoppedColor == bubble.bubbleColor
         comboCount = isCombo ? comboCount + 1 : 1
         lastPoppedColor = bubble.bubbleColor
@@ -157,7 +156,7 @@ class GameViewModel: ObservableObject {
             ? Int((Double(bubble.points) * 1.5).rounded())
             : bubble.points
         score += pointsEarned
-        scoreDidChange.toggle()    // triggers header flash (EF2c)
+        scoreDidChange.toggle()
 
         scorePopups.append(ScorePopup(
             id: bubble.id,
@@ -176,7 +175,7 @@ class GameViewModel: ObservableObject {
         }
     }
 
-    // MARK: - End game (CF10)
+    // MARK: - End game — called automatically when the timer hits zero (CF10)
     private func endGame() {
         timer?.cancel()
         timer = nil
@@ -185,6 +184,14 @@ class GameViewModel: ObservableObject {
         isGameOver = true
         bubbles = []
         scoreService.saveScore(playerName: playerName, score: score)
+    }
+
+    // MARK: - Early finish — player taps "End Game" before time runs out.
+    // Saves the current score and transitions to the scoreboard exactly as a
+    // normal timeout would.
+    func finishGameEarly() {
+        guard isGameRunning else { return }
+        endGame()
     }
 
     // MARK: - Reset to pre-game idle state (called before a new countdown)
