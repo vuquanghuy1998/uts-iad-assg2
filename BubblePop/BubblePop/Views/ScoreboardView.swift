@@ -125,7 +125,7 @@ struct ScoreboardView: View {
                         // Remove scoreboard from path, leaving the game destination,
                         // which creates a fresh GameView with a new countdown
                         navPath = NavigationPath()
-                        navPath.append(NavDestination.game(playerName))
+                        navPath.append(NavDestination.game(playerName, UUID()))
                     } label: {
                         Text("Play Again")
                             .font(.title3)

@@ -54,7 +54,7 @@ struct WelcomeView: View {
 
                     // MARK: - Start button
                     Button {
-                        navPath.append(NavDestination.game(playerName.trimmingCharacters(in: .whitespaces)))
+                        navPath.append(NavDestination.game(playerName.trimmingCharacters(in: .whitespaces), UUID()))
                     } label: {
                         Text("Start Game")
                             .font(.title2)
@@ -86,7 +86,7 @@ struct WelcomeView: View {
             // MARK: - Navigation destinations
             .navigationDestination(for: NavDestination.self) { destination in
                 switch destination {
-                case .game(let name):
+                case .game(let name, _):
                     GameView(playerName: name, navPath: $navPath)
                 case .scoreboard(let name, let score):
                     ScoreboardView(playerName: name, finalScore: score, navPath: $navPath)
@@ -101,7 +101,7 @@ struct WelcomeView: View {
 
 // MARK: - Navigation destinations enum
 enum NavDestination: Hashable {
-    case game(String)
+    case game(String, UUID)
     case scoreboard(String, Int)
 }
 

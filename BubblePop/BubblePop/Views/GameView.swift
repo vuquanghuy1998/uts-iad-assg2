@@ -14,6 +14,7 @@ struct GameView: View {
 
     @StateObject private var viewModel = GameViewModel()
     @State private var gameAreaSize: CGSize = .zero
+    @State private var gameAreaReady: Bool = false
 
     var body: some View {
         GeometryReader { _ in
@@ -72,8 +73,14 @@ struct GameView: View {
                     ZStack {
                         GeometryReader { gameGeo in
                             Color.clear
-                                .onAppear { gameAreaSize = gameGeo.size }
-                                .onChange(of: gameGeo.size) { _, newSize in gameAreaSize = newSize }
+                                .onAppear {
+                                    gameAreaSize = gameGeo.size
+                                    gameAreaReady = true
+                                }
+                                .onChange(of: gameGeo.size) { _, newSize in
+                                    gameAreaSize = newSize
+                                    gameAreaReady = true
+                                }
                         }
 
                         // Bubbles with pop animation
@@ -104,8 +111,8 @@ struct GameView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // MARK: - Countdown overlay
-                if !viewModel.isGameRunning && !viewModel.isGameOver {
+                // MARK: - Countdown overlay (only after game area is measured)
+                if gameAreaReady && !viewModel.isGameRunning && !viewModel.isGameOver {
                     CountdownView {
                         viewModel.startGame(screenSize: gameAreaSize)
                     }
@@ -113,6 +120,7 @@ struct GameView: View {
             }
             .onAppear {
                 viewModel.playerName = playerName
+                viewModel.restartGame()
             }
             .onChange(of: viewModel.isGameOver) { _, isOver in
                 if isOver {
@@ -143,50 +151,53 @@ struct CountdownView: View {
 
     let onComplete: () -> Void
     @State private var count: Int = 3
-    @State private var opacity: Double = 1.0
+    @State private var scale: CGFloat = 0.5
+    @State private var opacity: Double = 0.0
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
 
-            VStack(spacing: 20) {
+            Group {
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(size: 120, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .opacity(opacity)
                 } else {
                     Text("GO!")
                         .font(.system(size: 80, weight: .bold, design: .rounded))
                         .foregroundColor(.green)
-                        .opacity(opacity)
                 }
             }
+            .scaleEffect(scale)
+            .opacity(opacity)
         }
-        .onAppear {
-            startCountdown()
+        .task {
+            await runCountdown()
         }
     }
 
-    private func startCountdown() {
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            withAnimation(.easeInOut(duration: 0.3)) {
+    private func runCountdown() async {
+        // 3... 2... 1... GO!
+        for n in stride(from: 3, through: 0, by: -1) {
+            count = n
+            // Pop in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                scale = 1.0
+                opacity = 1.0
+            }
+            // Hold for 0.7s then fade out
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            withAnimation(.easeIn(duration: 0.25)) {
+                scale = 1.3
                 opacity = 0.0
             }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if count > 0 {
-                    count -= 1
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        opacity = 1.0
-                    }
-                } else {
-                    timer.invalidate()
-                    onComplete()
-                }
-            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            // Reset for next number
+            scale = 0.5
         }
+        onComplete()
     }
 }
 
