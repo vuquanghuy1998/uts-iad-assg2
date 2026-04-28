@@ -48,16 +48,16 @@ struct WelcomeView: View {
 
                             // MARK: - Logo + Title
                             VStack(spacing: 12) {
+                                // Logo scales to 70% of available width,
+                                // capped at 320pt so it stays sensible on iPad.
+                                let logoSize = min(geo.size.width * 0.70, 320)
                                 Image("WelcomePageLogo")
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(width: 380, height: 120)
-                                    .cornerRadius(24)
-                                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                                    .frame(width: logoSize)
+                                    .cornerRadius(logoSize * 0.12)
+                                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
 
-                                Text("BubblePop")
-                                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                                    .foregroundColor(.blue)
                                 Text("Pop bubbles, pop the fun!")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
