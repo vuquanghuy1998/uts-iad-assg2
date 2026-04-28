@@ -42,7 +42,7 @@ struct SettingsView: View {
                             get: { Double(settings.gameTime) },
                             set: { settings.gameTime = Int($0) }
                         ),
-                        in: Double(GameSettings.minGameTime)...Double(GameSettings.maxGameTime),
+                        in: Double(GameSettings.minGameTime)...Double(GameSettings.maxGameTimeLimit),
                         step: 10
                     )
                     .tint(.blue)
@@ -52,7 +52,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text("\(GameSettings.maxGameTime)s")
+                        Text("\(GameSettings.maxGameTimeLimit)s")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -80,7 +80,7 @@ struct SettingsView: View {
                             get: { Double(settings.maxBubbles) },
                             set: { settings.maxBubbles = Int($0) }
                         ),
-                        in: Double(GameSettings.minBubbles)...Double(GameSettings.maxBubbles),
+                        in: Double(GameSettings.minBubbles)...Double(GameSettings.maxBubblesLimit),
                         step: 1
                     )
                     .tint(.pink)
@@ -90,7 +90,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text("\(GameSettings.maxBubbles) bubbles")
+                        Text("\(GameSettings.maxBubblesLimit) bubbles")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
