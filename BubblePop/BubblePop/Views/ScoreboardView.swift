@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// MARK: - Main view
 struct ScoreboardView: View {
 
     let playerName: String
@@ -14,9 +15,7 @@ struct ScoreboardView: View {
     @Binding var navPath: NavigationPath
 
     @State private var scores: [Score] = []
-    /// Set when the user taps the minus button or swipes a row — triggers the confirmation alert.
     @State private var pendingDeleteName: String? = nil
-    /// Toggled by the Edit / Done button in the toolbar.
     @State private var isEditing: Bool = false
 
     private var isPostGame: Bool { !playerName.isEmpty }
@@ -33,137 +32,34 @@ struct ScoreboardView: View {
             ScrollView {
                 VStack(spacing: 20) {
 
-                    // MARK: - Player result card (post-game only)
+                    // Post-game result card
                     if isPostGame {
-                        VStack(spacing: 8) {
-                            Text("Game Over!")
-                                .font(.system(size: 36, weight: .bold, design: .rounded))
-
-                            Text(playerName)
-                                .font(.title2).fontWeight(.semibold)
-                                .foregroundColor(.blue)
-
-                            Text("Your Score")
-                                .font(.caption).foregroundColor(.secondary)
-
-                            Text("\(finalScore)")
-                                .font(.system(size: 64, weight: .bold, design: .rounded))
-                                .foregroundColor(.blue)
-
-                            if isNewHighScore {
-                                HStack {
-                                    Image(systemName: "trophy.fill").foregroundColor(.yellow)
-                                    Text("New High Score!").fontWeight(.semibold).foregroundColor(.yellow)
-                                    Image(systemName: "trophy.fill").foregroundColor(.yellow)
-                                }
-                                .transition(.scale.combined(with: .opacity))
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color(.systemBackground).opacity(0.8))
-                        .cornerRadius(20)
-                        .padding(.horizontal)
+                        ResultCard(
+                            playerName: playerName,
+                            finalScore: finalScore,
+                            isNewHighScore: isNewHighScore
+                        )
                     }
 
-                    // MARK: - High scores list (CF11)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("High Scores")
-                            .font(.headline)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                            .padding(.bottom, 10)
+                    // High scores list
+                    ScoreList(
+                        scores: scores,
+                        highlightName: playerName,
+                        isEditing: isEditing,
+                        onDelete: { name in pendingDeleteName = name }
+                    )
 
-                        if scores.isEmpty {
-                            Text("No scores yet — be the first!")
-                                .foregroundColor(.secondary)
-                                .padding([.horizontal, .bottom])
-                        } else {
-                            ForEach(Array(scores.enumerated()), id: \.offset) { index, entry in
-                                HStack(spacing: 12) {
-
-                                    // Red minus button shown in edit mode
-                                    if isEditing {
-                                        Button {
-                                            pendingDeleteName = entry.playerName
-                                        } label: {
-                                            Image(systemName: "minus.circle.fill")
-                                                .foregroundColor(.red)
-                                                .font(.title3)
-                                        }
-                                        .transition(.move(edge: .leading).combined(with: .opacity))
-                                    }
-
-                                    RankBadge(rank: index + 1, color: rankColor(for: index))
-
-                                    Text(entry.playerName)
-                                        .font(.body)
-                                        .fontWeight(entry.playerName == playerName ? .bold : .regular)
-                                        .lineLimit(1)
-
-                                    Spacer()
-
-                                    Text("\(entry.score)")
-                                        .font(.body).fontWeight(.semibold)
-                                        .foregroundColor(.blue)
-                                }
-                                .padding(.horizontal)
-                                .padding(.vertical, 10)
-                                .background(
-                                    entry.playerName == playerName
-                                        ? Color.blue.opacity(0.08)
-                                        : Color.clear
-                                )
-                                // Swipe-to-delete also available (requires tap to confirm)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        pendingDeleteName = entry.playerName
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-
-                                if index < scores.count - 1 {
-                                    Divider().padding(.horizontal)
-                                }
-                            }
-                            .padding(.bottom, 8)
-                        }
-                    }
-                    .background(Color(.systemBackground).opacity(0.8))
-                    .cornerRadius(20)
-                    .padding(.horizontal)
-                    .animation(.easeInOut(duration: 0.2), value: isEditing)
-
-                    // MARK: - Action buttons
-                    VStack(spacing: 12) {
-                        if isPostGame {
-                            Button {
-                                navPath = NavigationPath()
-                                navPath.append(NavDestination.game(playerName, UUID()))
-                            } label: {
-                                Text("Play Again")
-                                    .font(.title3).fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity).padding()
-                                    .background(Color.blue)
-                                    .cornerRadius(16)
-                                    .padding(.horizontal)
-                            }
-                        }
-
-                        Button {
+                    // Action buttons
+                    ActionButtons(
+                        isPostGame: isPostGame,
+                        onPlayAgain: {
                             navPath = NavigationPath()
-                        } label: {
-                            Text("Home")
-                                .font(.title3).fontWeight(.semibold)
-                                .foregroundColor(.blue)
-                                .frame(maxWidth: .infinity).padding()
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(16)
-                                .padding(.horizontal)
+                            navPath.append(NavDestination.game(playerName, UUID()))
+                        },
+                        onHome: {
+                            navPath = NavigationPath()
                         }
-                    }
+                    )
 
                     Spacer().frame(height: 20)
                 }
@@ -176,8 +72,6 @@ struct ScoreboardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isPostGame)
         .toolbar {
-            // Edit / Done button — always shown so users can manage scores
-            // whether they arrived post-game or browsed from the home screen.
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(isEditing ? "Done" : "Edit") {
                     withAnimation { isEditing.toggle() }
@@ -188,11 +82,10 @@ struct ScoreboardView: View {
         .onAppear {
             scores = ScoreService.shared.loadScores()
         }
-        // Exit edit mode automatically when the list becomes empty
         .onChange(of: scores) { _, newScores in
             if newScores.isEmpty { isEditing = false }
         }
-        // MARK: - Delete confirmation alert
+        // Confirmation alert — shown for both minus-button and swipe-to-delete
         .alert("Delete Score?", isPresented: Binding(
             get: { pendingDeleteName != nil },
             set: { if !$0 { pendingDeleteName = nil } }
@@ -214,11 +107,96 @@ struct ScoreboardView: View {
         }
     }
 
-    // MARK: - Helpers
     private var isNewHighScore: Bool {
         guard isPostGame, finalScore > 0 else { return false }
         let saved = scores.first { $0.playerName.lowercased() == playerName.lowercased() }
         return saved?.score == finalScore && finalScore >= (scores.first?.score ?? 0)
+    }
+}
+
+// MARK: - Result card
+private struct ResultCard: View {
+    let playerName: String
+    let finalScore: Int
+    let isNewHighScore: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Game Over!")
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+
+            Text(playerName)
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.blue)
+
+            Text("Your Score")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Text("\(finalScore)")
+                .font(.system(size: 64, weight: .bold, design: .rounded))
+                .foregroundColor(.blue)
+
+            if isNewHighScore {
+                HStack {
+                    Image(systemName: "trophy.fill").foregroundColor(.yellow)
+                    Text("New High Score!")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.yellow)
+                    Image(systemName: "trophy.fill").foregroundColor(.yellow)
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemBackground).opacity(0.8))
+        .cornerRadius(20)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Score list
+private struct ScoreList: View {
+    let scores: [Score]
+    let highlightName: String
+    let isEditing: Bool
+    let onDelete: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("High Scores")
+                .font(.headline)
+                .padding(.horizontal)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
+
+            if scores.isEmpty {
+                Text("No scores yet — be the first!")
+                    .foregroundColor(.secondary)
+                    .padding([.horizontal, .bottom])
+            } else {
+                ForEach(Array(scores.enumerated()), id: \.offset) { index, entry in
+                    ScoreRow(
+                        index: index,
+                        entry: entry,
+                        highlightName: highlightName,
+                        rankColor: rankColor(for: index),
+                        isEditing: isEditing,
+                        onDelete: { onDelete(entry.playerName) },
+                        onSwipeDelete: { onDelete(entry.playerName) }
+                    )
+                    if index < scores.count - 1 {
+                        Divider().padding(.horizontal)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+        }
+        .background(Color(.systemBackground).opacity(0.8))
+        .cornerRadius(20)
+        .padding(.horizontal)
+        .animation(.easeInOut(duration: 0.2), value: isEditing)
     }
 
     private func rankColor(for index: Int) -> Color {
@@ -231,9 +209,59 @@ struct ScoreboardView: View {
     }
 }
 
-// MARK: - Rank badge helper
-/// Extracted into its own view so the Swift type-checker doesn't time out
-/// when inferring the surrounding ForEach expression.
+// MARK: - Score row
+private struct ScoreRow: View {
+    let index: Int
+    let entry: Score
+    let highlightName: String
+    let rankColor: Color
+    let isEditing: Bool
+    let onDelete: () -> Void
+    let onSwipeDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if isEditing {
+                Button(action: onDelete) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.title3)
+                }
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            RankBadge(rank: index + 1, color: rankColor)
+
+            let isCurrent = entry.playerName == highlightName
+            Text(entry.playerName)
+                .font(.body)
+                .fontWeight(isCurrent ? .bold : .regular)
+                .lineLimit(1)
+
+            Spacer()
+
+            let scoreStr = "\(entry.score)"
+            Text(scoreStr)
+                .font(.body)
+                .fontWeight(.semibold)
+                .foregroundColor(.blue)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(
+            entry.playerName == highlightName
+                ? Color.blue.opacity(0.08)
+                : Color.clear
+        )
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive, action: onSwipeDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
+
+// MARK: - Rank badge
 private struct RankBadge: View {
     let rank: Int
     let color: Color
@@ -243,10 +271,59 @@ private struct RankBadge: View {
             Circle()
                 .fill(color)
                 .frame(width: 32, height: 32)
-            Text("\(rank)")
+            let label = "\(rank)"
+            Text(label)
                 .font(.caption)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
+        }
+    }
+}
+
+// MARK: - Action buttons
+private struct ActionButtons: View {
+    let isPostGame: Bool
+    let onPlayAgain: () -> Void
+    let onHome: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if isPostGame {
+                ScoreboardButton(
+                    title: "Play Again",
+                    foreground: .white,
+                    background: Color.blue,
+                    action: onPlayAgain
+                )
+            }
+            ScoreboardButton(
+                title: "Home",
+                foreground: .blue,
+                background: Color.blue.opacity(0.1),
+                action: onHome
+            )
+        }
+    }
+}
+
+// MARK: - Reusable full-width button
+private struct ScoreboardButton: View {
+    let title: String
+    let foreground: Color
+    let background: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(foreground)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(background)
+                .cornerRadius(16)
+                .padding(.horizontal)
         }
     }
 }

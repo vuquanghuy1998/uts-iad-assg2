@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Score: Codable, Identifiable {
+struct Score: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     let playerName: String
     let score: Int
